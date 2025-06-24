@@ -1,0 +1,15 @@
+pandas
+requests
+beautifulsoup4
+numpy
+matplotlib
+seaborn
+plotly
+dash
+scikit-learn
+category-encoders
+imbalanced-learn
+streamlit
+jupyter
+statsmodels
+xgboost
