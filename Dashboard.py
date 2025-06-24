@@ -1,5 +1,6 @@
 
 # final_dashboard.py (Final Streamlit with Export, Tabs, & Optimization)
+pip install openpyxl
 import streamlit as st
 import pandas as pd
 import plotly.express as px
