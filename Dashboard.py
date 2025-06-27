@@ -1,11 +1,12 @@
 
-# final_dashboard.py (Final Streamlit with Export, Tabs, & Optimization)
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import seaborn as sns
 import matplotlib.pyplot as plt
+import joblib
+from datetime import datetime
 
 st.set_page_config(page_title="Pharmacy EDA Dashboard", layout="wide", page_icon="💊")
 
@@ -35,10 +36,14 @@ else:
     df = st.session_state.df
     df_filtered = st.session_state.filtered
 
+# Load best model and label encoder
+model = joblib.load("best_model.pkl")
+le = joblib.load("label_encoder.pkl")
+
 # Sidebar Filters
 st.sidebar.title("🔎 Filters")
 with st.sidebar.expander("📍 Refine your view"):
-    selected_city = st.multiselect("🏙️ Select City", options=sorted(df['Customer City'].unique()), default=df['Customer City'].unique())
+    selected_city = st.multiselect("🏩 Select City", options=sorted(df['Customer City'].unique()), default=df['Customer City'].unique())
     selected_category = st.multiselect("🧴 Select Category", options=sorted(df['Category'].unique()), default=df['Category'].unique())
     selected_gender = st.multiselect("👤 Select Gender", options=df['Gender'].unique(), default=df['Gender'].unique())
 
@@ -49,7 +54,7 @@ with st.sidebar.expander("📍 Refine your view"):
         st.session_state.filtered = df_filtered
 
 # Tabs for navigation
-tab1, tab2, tab3 = st.tabs(["📊 EDA Visuals", "📥 Export & Summary", "📈 ML Predictions"])
+tab1, tab2, tab3 = st.tabs(["📊 EDA Visuals", "📅 Export & Summary", "📈 ML Predictions"])
 
 with tab1:
     st.title("📊 EDA Dashboard — E-commerce Pharmacy")
@@ -81,7 +86,7 @@ with tab1:
     st.plotly_chart(px.line(monthly, x='Month_Name', y='Total sales', color='Year', markers=True), use_container_width=True)
 
     # Visual 5: Category x Gender
-    st.subheader("🧠 Sales by Gender Across Categories")
+    st.subheader("👥 Sales by Gender Across Categories")
     combo = df_filtered.groupby(['Gender', 'Category'])['Total sales'].sum().reset_index()
     st.plotly_chart(px.bar(combo, x='Category', y='Total sales', color='Gender', barmode='group'), use_container_width=True)
 
@@ -136,16 +141,75 @@ with tab1:
     stores = df_filtered.groupby('Store ID')['Total sales'].sum().reset_index()
     st.plotly_chart(px.bar(stores, x='Store ID', y='Total sales', color='Store ID'), use_container_width=True)
 
+
+    # Add Month, Year, Month_Name columns for tab1 if not exist
+    if 'Month' not in df_filtered.columns:
+        df_filtered['Trx Date'] = pd.to_datetime(df_filtered['Trx Date'], errors='coerce')
+        df_filtered['Month'] = df_filtered['Trx Date'].dt.month
+        df_filtered['Month_Name'] = df_filtered['Trx Date'].dt.strftime('%B')
+        df_filtered['Year'] = df_filtered['Trx Date'].dt.year
+
 with tab2:
-    st.header("📥 Export Filtered Dataset")
+    st.header("📅 Export Filtered Dataset")
     st.download_button("⬇ Download CSV", df_filtered.to_csv(index=False), file_name='filtered_sales_data.csv')
     st.success("You can now download the filtered data for reporting.")
 
 with tab3:
-    st.header("📈 Machine Learning Prediction")
-    st.warning("🚧 This section is under development.")
-    st.caption("Coming Soon: Predict customer type or sales trends based on invoice info.")
+    st.header("📈 Predict Customer Type")
+
+    st.markdown("Use the form below to simulate an order and predict the likely **Customer Type**.")
+
+    with st.form("predict_form"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            category = st.selectbox("Category", sorted(df['Category'].unique()))
+            brand_options = df[df['Category'] == category]['Brand'].unique()
+            brand = st.selectbox("Brand", sorted(brand_options))
+            city = st.selectbox("Customer City", sorted(df['Customer City'].unique()))
+            invoice_type = st.selectbox("Invoice Type", df['Invoice Type'].unique())
+            gender = st.selectbox("Gender", df['Gender'].unique())
+
+        with col2:
+            items_count = st.number_input("Invoices Items Count", min_value=1, max_value=50, value=3, step=1)
+            qty_per_invoice = st.number_input("Items Qty Per Invoice", min_value=1, max_value=200, value=5, step=1)
+            total_sales = st.number_input("Total Sales", min_value=0.0, value=100.0, step=1.0)
+            order_value = total_sales / qty_per_invoice
+            is_weekend = st.radio("Is Weekend?", [0, 1])
+            high_price_flag = int(total_sales > df['Total sales'].mean())
+            invoice_intensity = qty_per_invoice / items_count
+            today = datetime.today()
+            month = today.month
+            month_name = today.strftime('%B')
+            year = today.year
+
+        submit = st.form_submit_button("🔮 Predict")
+
+    if submit:
+        input_df = pd.DataFrame([{
+            'Customer City': city,
+            'Category': category,
+            'Brand': brand,
+            'Invoice Type': invoice_type,
+            'Gender': gender,
+            'Invoices Items Count': items_count,
+            'Items Qty Per Invoice': qty_per_invoice,
+            'Total sales': total_sales,
+            'OrderValuePerItem': order_value,
+            'Is_Weekend': is_weekend,
+            'High_Price_Flag': high_price_flag,
+            'Invoice_Item_Intensity': invoice_intensity,
+            'Month': month,
+            'Month_Name': month_name,
+            'Year': year
+        }])
+
+        # Predict using pipeline directly (with built-in preprocessing)
+        prediction = model.predict(input_df)[0]
+        pred_label = le.inverse_transform([prediction])[0]
+
+        st.success(f"🌟 Predicted Customer Type: **{pred_label}**")
 
 # Footer
 st.markdown("---")
-st.markdown("Made with ❤️ for Final Project — Epsilon AI")
+st.markdown("Made with ❤️ for Final Project — Noureldeen Loutah")
