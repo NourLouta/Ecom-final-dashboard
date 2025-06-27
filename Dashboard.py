@@ -32,9 +32,10 @@ if "filtered" not in st.session_state:
     df = load_data()
     st.session_state.df = df
     st.session_state.filtered = df
-else:
-    df = st.session_state.df
-    df_filtered = st.session_state.filtered
+
+# Always assign from session (safe fallback)
+df = st.session_state.df
+df_filtered = st.session_state.filtered
 
 # Load best model and label encoder
 model = joblib.load("best_model.pkl")
@@ -48,10 +49,14 @@ with st.sidebar.expander("📍 Refine your view"):
     selected_gender = st.multiselect("👤 Select Gender", options=df['Gender'].unique(), default=df['Gender'].unique())
 
     if st.button("✅ Apply Filters"):
-        df_filtered = df[(df['Customer City'].isin(selected_city)) &
-                         (df['Category'].isin(selected_category)) &
-                         (df['Gender'].isin(selected_gender))].copy()
-        st.session_state.filtered = df_filtered
+        st.session_state.filtered = df[
+            (df['Customer City'].isin(selected_city)) &
+            (df['Category'].isin(selected_category)) &
+            (df['Gender'].isin(selected_gender))
+        ].copy()
+
+        # ✅ Immediately reassign df_filtered
+        df_filtered = st.session_state.filtered
 
 # Tabs for navigation
 tab1, tab2, tab3 = st.tabs(["📊 EDA Visuals", "📅 Export & Summary", "📈 ML Predictions"])
